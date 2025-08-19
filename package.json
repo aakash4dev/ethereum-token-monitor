@@ -2,30 +2,32 @@
     "name": "ethereum-token-monitor",
     "version": "1.0.0",
     "description": "Monitor Ethereum addresses for specific ERC-20 token transfers",
-    "main": "monitor.js",
+    "main": "index.js",
     "scripts": {
-        "start": "node monitor.js",
-        "dev": "nodemon monitor.js",
-        "test": "node test.js"
+      "start": "node index.js",
+      "dev": "nodemon index.js",
+      "test": "node test.js"
     },
     "keywords": [
-        "ethereum",
-        "blockchain",
-        "token",
-        "monitoring",
-        "erc20",
-        "web3"
+      "ethereum",
+      "blockchain",
+      "token",
+      "monitoring",
+      "erc20",
+      "web3"
     ],
-    "author": "Your Name",
+    "author": "Aakash Singh Rajput",
     "license": "MIT",
     "dependencies": {
-        "dotenv": "^16.6.1",
-        "ethers": "^6.15.0"
+      "ethers": "^6.8.0",
+      "dotenv": "^16.3.1"
     },
     "devDependencies": {
-        "nodemon": "^3.0.1"
+      "nodemon": "^3.0.1"
     },
     "engines": {
-        "node": ">=16.0.0"
-    }
-}
+      "node": ">=16.0.0"
+    },
+    "type": "module"
+  }
+  
