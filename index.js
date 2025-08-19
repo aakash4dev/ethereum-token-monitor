@@ -1,119 +1,131 @@
+import fs from "fs";
+import dotenv from "dotenv";
 import { ethers } from "ethers";
-import * as fs from "fs";
-import * as dotenv from "dotenv";
+import http from "http";
+import WebSocket, { WebSocketServer } from "ws";
 
 dotenv.config();
 
+// --- ENV CONFIG ---
 const RPC_URL = process.env.RPC_URL;
 const TOKEN_ADDRESS = process.env.TOKEN_ADDRESS;
-const FROM_BLOCK = parseInt(process.env.FROM_BLOCK);
-const SCAN_DELAY_MS = parseInt(process.env.SCAN_DELAY_MS || "50");
 const ADDRESS_FILE = process.env.ADDRESS_FILE;
+const FROM_BLOCK = parseInt(process.env.FROM_BLOCK, 10);
+const SCAN_DELAY_MS = parseInt(process.env.SCAN_DELAY_MS, 10) || 1000;
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 
-// Load tracked addresses
+// --- USDT ABI (only Transfer event) ---
+const ERC20_ABI = [
+  "event Transfer(address indexed from, address indexed to, uint256 value)"
+];
+const token = new ethers.Contract(TOKEN_ADDRESS, ERC20_ABI, provider);
+
+// --- Load addresses to watch ---
 const trackedAddresses = fs
-  .readFileSync(ADDRESS_FILE, "utf8")
+  .readFileSync(ADDRESS_FILE, "utf-8")
   .split("\n")
   .map((a) => a.trim().toLowerCase())
-  .filter((a) => a);
+  .filter((a) => a.length > 0);
 
-console.log("Tracked addresses:", trackedAddresses);
+// --- WebSocket Server Setup ---
+const server = http.createServer();
+const wss = new WebSocketServer({ server });
+let subscriptions = {}; // { address: [ws1, ws2, ...] }
 
-const ERC20_ABI = [
-  "event Transfer(address indexed from, address indexed to, uint256 value)",
-];
-const usdt = new ethers.Contract(TOKEN_ADDRESS, ERC20_ABI, provider);
+wss.on("connection", (ws, req) => {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const type = url.searchParams.get("type");
+  const address = url.searchParams.get("address")?.toLowerCase();
 
-async function sleep(ms) {
-  return new Promise((res) => setTimeout(res, ms));
-}
+  if (type === "subscribe" && address) {
+    if (!subscriptions[address]) subscriptions[address] = [];
+    subscriptions[address].push(ws);
 
-async function scanPastTransfers() {
-  const latestBlock = await provider.getBlockNumber();
-  console.log(`🔍 Scanning past USDT transfers from block ${FROM_BLOCK} → ${latestBlock} ...`);
+    console.log(`✅ Client subscribed to ${address}`);
+    ws.send(JSON.stringify({ message: `Subscribed to ${address}` }));
+  }
 
-  const step = 100; // <= adjust for your RPC limit, hwo many blocks at a time
-  for (let start = FROM_BLOCK; start <= latestBlock; start += step + 1) {
-    const end = Math.min(start + step, latestBlock);
-
-    try {
-      const logs = await provider.getLogs({
-        address: TOKEN_ADDRESS,
-        fromBlock: start,
-        toBlock: end,
-        topics: [ethers.id("Transfer(address,address,uint256)")],
-      });
-
-      for (const log of logs) {
-        const parsed = usdt.interface.parseLog(log);
-        const { from, to, value } = parsed.args;
-      
-        if (
-          trackedAddresses.includes(from.toLowerCase()) ||
-          trackedAddresses.includes(to.toLowerCase())
-        ) {
-          const txHash = log.transactionHash;
-          const etherscanUrl = `https://etherscan.io/tx/${txHash}`;
-      
-          // USDT has 6 decimals
-          const amount = Number(value) / 1e6;
-      
-          console.log(
-            `📦 Block ${log.blockNumber}: ${amount} USDT from ${from} → ${to}\n   🔗 ${etherscanUrl}`
-          );
-        }
-      }
-      
-      
-    } catch (err) {
-      console.error(`❌ Error fetching logs ${start} → ${end}:`, err.message);
-      await sleep(1000);
+  ws.on("close", () => {
+    for (const addr in subscriptions) {
+      subscriptions[addr] = subscriptions[addr].filter((client) => client !== ws);
     }
+  });
+});
 
-    await sleep(SCAN_DELAY_MS);
+server.listen(8080, () => {
+  console.log(`🚀 WebSocket server running at ws://localhost:8080`);
+});
+
+// --- Tracker Logic ---
+async function processTransfer(log, blockNumber) {
+  try {
+    const parsed = token.interface.parseLog(log);
+    const { from, to, value } = parsed.args;
+
+    const fromAddr = from.toLowerCase();
+    const toAddr = to.toLowerCase();
+
+    if (trackedAddresses.includes(fromAddr) || trackedAddresses.includes(toAddr)) {
+      const amount = Number(value) / 1e6; // USDT has 6 decimals
+      const txHash = log.transactionHash;
+      const etherscanUrl = `https://etherscan.io/tx/${txHash}`;
+
+      console.log(
+        `📢 Block ${blockNumber}: ${amount} USDT from ${from} → ${to}\n   🔗 ${etherscanUrl}`
+      );
+
+      // 🔥 Send to subscribers
+      [fromAddr, toAddr].forEach((addr) => {
+        if (subscriptions[addr]) {
+          subscriptions[addr].forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(
+                JSON.stringify({
+                  block: blockNumber,
+                  from,
+                  to,
+                  amount,
+                  txHash,
+                  url: etherscanUrl,
+                })
+              );
+            }
+          });
+        }
+      });
+    }
+  } catch (err) {
+    console.error("❌ Error parsing log:", err);
   }
 }
 
-async function watchNewBlocks() {
-  console.log("👀 Watching new blocks for USDT transfers...");
-  provider.on("block", async (blockNumber) => {
+async function scanBlocks() {
+  let currentBlock = FROM_BLOCK;
+  while (true) {
     try {
-      const logs = await provider.getLogs({
-        address: TOKEN_ADDRESS,
-        fromBlock: blockNumber,
-        toBlock: blockNumber,
-        topics: [ethers.id("Transfer(address,address,uint256)")],
-      });
+      const latestBlock = await provider.getBlockNumber();
+      if (currentBlock <= latestBlock) {
+        const logs = await provider.getLogs({
+          fromBlock: currentBlock,
+          toBlock: currentBlock,
+          address: TOKEN_ADDRESS,
+          topics: [ethers.id("Transfer(address,address,uint256)")],
+        });
 
-      for (const log of logs) {
-        const parsed = usdt.interface.parseLog(log);
-        const { from, to, value } = parsed.args;
-      
-        if (
-          trackedAddresses.includes(from.toLowerCase()) ||
-          trackedAddresses.includes(to.toLowerCase())
-        ) {
-          const txHash = log.transactionHash;
-          const etherscanUrl = `https://etherscan.io/tx/${txHash}`;
-      
-          const amount = Number(value) / 1e6; // convert to readable format
-      
-          console.log(
-            `📢 New Block ${blockNumber}: ${amount} USDT from ${from} → ${to}\n   🔗 ${etherscanUrl}`
-          );
+        for (const log of logs) {
+          await processTransfer(log, currentBlock);
         }
+        currentBlock++;
+      } else {
+        await new Promise((r) => setTimeout(r, SCAN_DELAY_MS));
       }
-      
-      
     } catch (err) {
-      console.error(`❌ Error fetching logs for block ${blockNumber}:`, err.message);
+      console.error("⚠️ Scan error:", err);
+      await new Promise((r) => setTimeout(r, 5000));
     }
-  });
+  }
 }
 
-(async () => {
-  await scanPastTransfers();
-  await watchNewBlocks();
-})();
+// --- Start ---
+scanBlocks();

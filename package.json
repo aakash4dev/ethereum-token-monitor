@@ -4,30 +4,30 @@
     "description": "Monitor Ethereum addresses for specific ERC-20 token transfers",
     "main": "index.js",
     "scripts": {
-      "start": "node index.js",
-      "dev": "nodemon index.js",
-      "test": "node test.js"
+        "start": "node index.js",
+        "dev": "nodemon index.js",
+        "test": "node test.js"
     },
     "keywords": [
-      "ethereum",
-      "blockchain",
-      "token",
-      "monitoring",
-      "erc20",
-      "web3"
+        "ethereum",
+        "blockchain",
+        "token",
+        "monitoring",
+        "erc20",
+        "web3"
     ],
     "author": "Aakash Singh Rajput",
     "license": "MIT",
     "dependencies": {
-      "ethers": "^6.8.0",
-      "dotenv": "^16.3.1"
+        "dotenv": "^16.3.1",
+        "ethers": "^6.8.0",
+        "ws": "^8.18.3"
     },
     "devDependencies": {
-      "nodemon": "^3.0.1"
+        "nodemon": "^3.0.1"
     },
     "engines": {
-      "node": ">=16.0.0"
+        "node": ">=16.0.0"
     },
     "type": "module"
-  }
-  
+}
