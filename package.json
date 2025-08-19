@@ -1,0 +1,31 @@
+{
+    "name": "ethereum-token-monitor",
+    "version": "1.0.0",
+    "description": "Monitor Ethereum addresses for specific ERC-20 token transfers",
+    "main": "monitor.js",
+    "scripts": {
+        "start": "node monitor.js",
+        "dev": "nodemon monitor.js",
+        "test": "node test.js"
+    },
+    "keywords": [
+        "ethereum",
+        "blockchain",
+        "token",
+        "monitoring",
+        "erc20",
+        "web3"
+    ],
+    "author": "Your Name",
+    "license": "MIT",
+    "dependencies": {
+        "dotenv": "^16.6.1",
+        "ethers": "^6.15.0"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.1"
+    },
+    "engines": {
+        "node": ">=16.0.0"
+    }
+}
