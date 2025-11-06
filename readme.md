@@ -1,114 +1,78 @@
 # Ethereum Token Monitor
 
-Monitor Ethereum ERC-20 `Transfer` events for a set of tracked addresses and stream matched events over WebSocket.
+Real-time ERC-20 token transfer monitoring with WebSocket streaming.
 
-## Table of Contents
+## Quick Start
 
-- [Features](#features)
-- [Requirements](#requirements)
-- [Setup](#setup)
-- [Usage](#usage)
-- [WebSocket API](#websocket-api)
-- [Contributing](#contributing)
-- [License](#license)
-- [Disclaimer](#disclaimer)
-
-## Features
-
-- **Address collector**: Scans blocks and collects unique token holder addresses into `addresses.txt`.
-- **Live monitor**: Watches blocks for `Transfer` events of a target token and emits only those involving tracked addresses.
-- **WebSocket server**: Clients can subscribe to specific addresses and receive real-time notifications.
-
-## Requirements
-
-- Node.js >= 16
-
-## Setup
-
-1. Copy env template and configure:
+1. **Setup**
 ```sh
 cp .sample.env .env
-```
-
-2. Edit `.env` and set values:
-```env
-RPC_URL=...            # Ethereum RPC endpoint
-TOKEN_ADDRESS=...      # ERC-20 contract (e.g., USDT on mainnet)
-ADDRESS_FILE=./addresses.txt
-FROM_BLOCK=23173700    # Start block for monitoring
-SCAN_DELAY_MS=50       # Optional: polling delay when caught up
-```
-
-3. Install dependencies:
-```sh
 npm i
 ```
 
-## Usage
-
-- Collect active addresses (writes to `addresses.txt`):
-```sh
-node src/collectActiveAddresses.js
+2. **Configure `.env`**
+```env
+RPC_URL=https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY
+TOKEN_ADDRESS=0xdac17f958d2ee523a2206206994597c13d831ec7
+ADDRESS_FILE=./addresses.txt
+FROM_BLOCK=23173700
 ```
 
-- Start the monitor and WebSocket server:
+3. **Collect addresses** (optional)
+```sh
+node collectActiveAddresses.js
+```
+
+4. **Start monitoring**
 ```sh
 npm start
-# or
-node src/index.js
 ```
 
-By default the WebSocket server listens on `ws://localhost:8080`.
+WebSocket server: `ws://localhost:8080`
 
 ## WebSocket API
 
-- **Subscribe**: To subscribe to updates for a specific address, connect to the WebSocket with the `type=subscribe` and `address` query parameters. The address will be checked for both sender and receiver of the transfer.
+**Subscribe to address:**
+```
+ws://localhost:8080?type=subscribe&address=0xYourAddress
+```
 
-  `ws://localhost:8080?type=subscribe&address=0xYourAddress`
-
-- **Sample Message**: When a matching transfer occurs, a JSON message like the following is broadcast to subscribed clients:
-
+**Event payload:**
 ```json
 {
   "block": 12345678,
-  "from": "0x...",
-  "to": "0x...",
+  "from": "0xSender",
+  "to": "0xReceiver",
   "amount": 12.345678,
-  "txHash": "0x...",
-  "url": "https://etherscan.io/tx/0x..."
+  "txHash": "0xHash",
+  "url": "https://etherscan.io/tx/0xHash"
 }
 ```
 
-### Quick client example (Node.js)
+**Client example:**
 ```js
 import WebSocket from "ws";
 
-const address = "0xYourAddress".toLowerCase();
-const ws = new WebSocket(`ws://localhost:8080?type=subscribe&address=${address}`);
+const ws = new WebSocket(
+  `ws://localhost:8080?type=subscribe&address=0xYourAddress`
+);
 
-ws.on("open", () => console.log("connected"));
-ws.on("message", (data) => console.log("event:", data.toString()));
-ws.on("close", () => console.log("closed"));
+ws.on("message", (data) => console.log(JSON.parse(data)));
 ```
 
+## How It Works
+
+- Scans Ethereum blocks for `Transfer` events
+- Filters events involving addresses in `addresses.txt`
+- Streams matching transfers to subscribed WebSocket clients
+- Monitors both incoming and outgoing transfers
+
 ## Notes
-- The monitor uses the ERC-20 `Transfer(address,address,uint256)` event topic filter.
-- Amount is decoded assuming 6 decimals (USDT). For other tokens, adjust the decimal handling in `index.js` accordingly.
-- `addresses.txt` should contain one address per line (lowercased). You can generate it using the collector or maintain it manually.
-- Ensure your `RPC_URL` has sufficient rate limits for continuous scanning.
 
-## Scripts
-- `npm start`: Run `src/index.js` (monitor + WebSocket server)
-- `npm run dev`: Run with `nodemon`
-
-## Contributing
-
-Contributions are welcome! Please see our [Contributing Guidelines](CONTRIBUTING.md) for more details.
+- Assumes 6 decimals (USDT). Adjust for other tokens in `index.js`
+- `addresses.txt`: one lowercase address per line
+- Requires RPC with adequate rate limits
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Disclaimer
-
-This is an experimental project. Use at your own risk.
+MIT
