@@ -1,12 +1,12 @@
 {
     "name": "ethereum-token-monitor",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Monitor Ethereum addresses for specific ERC-20 token transfers",
-    "main": "index.js",
+    "main": "src/index.js",
     "scripts": {
-        "start": "node index.js",
-        "dev": "nodemon index.js",
-        "test": "node test.js"
+        "start": "node src/index.js",
+        "dev": "nodemon src/index.js",
+        "test": "node src/test.js"
     },
     "keywords": [
         "ethereum",
@@ -16,8 +16,12 @@
         "erc20",
         "web3"
     ],
-    "author": "Aakash Singh Rajput",
+    "author": "Aakash Singh Rajput <aakashsinghrajput305@gmail.com>",
     "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": ""
+    },
     "dependencies": {
         "dotenv": "^16.3.1",
         "ethers": "^6.8.0",
